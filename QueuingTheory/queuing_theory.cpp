@@ -28,13 +28,13 @@ namespace KHAS {
 
         friend std::ostream& operator << (std::ostream& os, const InputData& data);
 
-        size_t getNumberOfMachines() const & noexcept {
+        size_t getNumberOfMachines() const noexcept {
             return number_of_machines_;
         }
-        size_t getChannelsOfConnection() const & noexcept {
+        size_t getChannelsOfConnection() const noexcept {
             return channels_of_connection_;
         }
-        double getFailureProbability() const & noexcept {
+        double getFailureProbability() const noexcept {
             return failure_probability_;
         }
 
@@ -50,36 +50,80 @@ namespace KHAS {
             number_of_machines_ = 0;
             number_of_tests_ = 0;
             number_of_connection_columns_ = 0;
+            number_of_working_times_ = 0;
             failure_probability_ = 0;
             observation_interval_ = 0;
             quintile_of_normal_distribution_ = 0;
+            channels_of_connection_ = 0;
 
             number_of_connections_.clear();
             working_hours_.clear();
         }
 
-        bool loadDataFromFile() noexcept {
-            std::ifstream fs{ filename_ };
-            if (!fs.is_open()) return false;
-            fs >> number_of_machines_ >> channels_of_connection_ 
-                >> failure_probability_ >> number_of_tests_ 
-                >> observation_interval_ >> quintile_of_normal_distribution_
-                >> number_of_connection_columns_;
+        template <typename T, typename Func>
+        bool readFromStream(T& container, std::ifstream& fs, const size_t cols, const size_t rows, Func func) noexcept {
 
-            if (fs.fail()) return false;
-            number_of_connections_.reserve(number_of_connection_columns_);
-            for (size_t i{}, ie{ number_of_machines_ }; i != ie; ++i) {
-                size_t sum{};
-                for (size_t j{}, je{ number_of_connection_columns_ }; j != je; ++j) {
-                    size_t tmp;
+            using value_type = typename T::value_type;
+            container.reserve(cols);
+            std::string tmp{};
+            fs.get();
+            std::getline(fs, tmp);
+            std::getline(fs, tmp);
+
+            for (size_t i{}, ie{ cols }; i != ie; ++i) {
+                value_type sum{};
+                value_type tmp;
+                for (size_t j{}, je{ rows }; j != je; ++j) {
                     fs >> tmp;
                     sum += tmp;
                     if (fs.fail()) return false;
                 }
+                container.emplace_back(func(sum));
             }
-            
+            return true;
+        }
 
-            return fs.good();
+        template <typename T>
+        inline std::pair<T, size_t> readFromStream(std::ifstream& fs) const noexcept {
+            using value_type = T;
+
+            std::string tmp;
+            value_type result{};
+            if (fs >> result) std::getline(fs, tmp);
+
+            return { result, fs.good() };
+        }
+
+        bool loadDataFromFile() noexcept {
+
+            std::ifstream fs{ filename_ };
+            if (!fs.is_open()) return false;
+
+            size_t tmp{};
+            size_t status{ 1 };
+            std::tie(number_of_machines_, tmp)               = readFromStream<size_t>(fs);
+            status &= tmp;
+            std::tie(channels_of_connection_, tmp)           = readFromStream<size_t>(fs);
+            status &= tmp;
+            std::tie(failure_probability_, tmp)              = readFromStream<double>(fs);
+            status &= tmp;
+            std::tie(number_of_tests_, tmp)                  = readFromStream<size_t>(fs);
+            status &= tmp;
+            std::tie(observation_interval_, tmp)             = readFromStream<double>(fs);
+            status &= tmp;
+            std::tie(quintile_of_normal_distribution_, tmp)  = readFromStream<double>(fs);
+            status &= tmp;
+            std::tie(number_of_connection_columns_, tmp)     = readFromStream<size_t>(fs);
+            status &= tmp;
+            std::tie(number_of_working_times_, tmp)          = readFromStream<size_t>(fs);
+            status &= tmp;
+            if (status != 1) return false;
+
+            return readFromStream(number_of_connections_, fs, number_of_machines_, number_of_connection_columns_,
+                [&](auto n) { return 1. * n / number_of_connection_columns_; })
+                && readFromStream(working_hours_, fs, number_of_machines_, number_of_working_times_,
+                    [&](auto n) { return number_of_connection_columns_ * 24. / n; });
+            
         }
 
     private:
@@ -87,6 +131,7 @@ namespace KHAS {
         size_t number_of_machines_{};
         size_t number_of_tests_{};
         size_t number_of_connection_columns_{};
+        size_t number_of_working_times_{};
         size_t channels_of_connection_{};
         double failure_probability_{};
         double observation_interval_{};
@@ -104,7 +149,12 @@ namespace KHAS {
             << std::setw(40) << "channels_of_connection_: " << data.channels_of_connection_ << "\n"
             << std::setw(40) << "failure_probability_: " << data.failure_probability_ << "\n"
             << std::setw(40) << "observation_interval_: " << data.observation_interval_ << "\n"
-            << std::setw(40) << "quintile_of_normal_distribution_: " << data.quintile_of_normal_distribution_ << "\n";
+            << std::setw(40) << "quintile_of_normal_distribution_: " << data.quintile_of_normal_distribution_ << "\n"
+            << std::setw(40) << "number_of_connections_:\n";
+        for (auto&& elem : data.number_of_connections_) std::cout << std::setw(8) << elem << " ";
+        std::cout << "\n" << std::setw(40) << "working_hours_:\n";
+        for (auto&& elem : data.working_hours_) std::cout << std::setw(8) << elem << " ";
+
         return os;
     }
 
@@ -151,8 +201,7 @@ namespace KHAS {
 
 
 int main() {
-
-    KHAS::InputData data{ "./data.txt" };
+    KHAS::InputData data{ "D:\\PROJECTS\\CPP\\QueuingTheory\\x64\\Debug\\data.txt" };
 
     std::cout << data << "\n\n";
 
