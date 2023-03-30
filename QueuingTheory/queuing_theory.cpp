@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <random>
 #include <fstream>
+#include <numeric>
+#include <map>
+#include <sstream>
+#include <iterator>
 
 
 
@@ -34,12 +38,28 @@ namespace KHAS {
         size_t getChannelsOfConnection() const noexcept {
             return channels_of_connection_;
         }
+        size_t getNumberOfTests() const noexcept {
+            return number_of_tests_;
+        }
         double getFailureProbability() const noexcept {
             return failure_probability_;
+        }
+        double getObservationInterval() const noexcept {
+            return observation_interval_;
+        }
+        double getQuintileOfNormalDistribution() const noexcept {
+            return quintile_of_normal_distribution_;
         }
 
         bool isLoad() const & noexcept {
             return is_load_;
+        }
+
+        auto& getNumberOfConnections() const& noexcept {
+            return number_of_connections_;
+        }
+        auto& getWorkingHours() const& noexcept {
+            return working_hours_;
         }
 
 
@@ -168,29 +188,110 @@ namespace KHAS {
     class FailureProbabilityAssessment final {
 
     public:
-        FailureProbabilityAssessment(const InputData& id) noexcept
-            : number_of_machines_{ id.getNumberOfMachines()}
-            , channels_of_connection_{ id.getChannelsOfConnection()}
-            , failure_probability_{ id.getFailureProbability()}
+        explicit FailureProbabilityAssessment(const InputData& data) noexcept
+            : data_{ data } 
         {
-            init();
+            connect_.reserve(data_.getNumberOfTests());
+            denial_.reserve(data_.getNumberOfTests());
+            connect_state_.resize(data_.getNumberOfTests());
+            startTests();
+            showCalculationResult();
         }
+
+    public:
+        void showCalculationResult() const noexcept{
+            /*std::setlocale(LC_ALL, "Russian");
+            std::stringstream buf;
+            buf << std::setw(15) << std::left << "| Компьютер "
+                << std::setw(40) << std::left << "| Интенсивности подключения"
+                << std::setw(40) << std::left << "| Интенсивности освобождения" 
+                << "|";
+            
+            auto delim{ delimiter('-', buf.tellp()) };
+            auto header{ buf.str() };
+            buf.str("");
+            buf << delim << "\n"
+                << header << "\n"
+                << delim << "\n";
+            for()
+
+            std::cout << buf.str();*/
+
+        }
+
         
     private:
-        void init() {
-            number_of_connections_ = { 5.0833333333,  8.1666666666, 10.6666666666, 9.5833333333, 7.4166666666 };
-            working_hours_ = { 47.3684210526, 24.76354256233, 26.9410664172, 28.3185840707, 25.0652741514 };
+        inline void BreakConnect() noexcept {
+            std::fill(connect_state_.begin(), connect_state_.end(), 0);
         }
+
+        inline double randomRealGenerate(double lhs, double rhs) {
+            std::random_device rd;
+            std::default_random_engine re{ rd() };
+            std::uniform_real_distribution<double> un_dist(lhs, rhs);
+
+            return un_dist(re);
+        }
+
+        inline size_t  calcConnectedComp() {
+            return std::count(connect_state_.begin(), connect_state_.end(), 1);
+        }
+
+        std::pair<size_t, size_t> Step() {
+
+            size_t connect{};
+            size_t denial{};
+
+            for (size_t i{}, ie{ data_.getNumberOfMachines() }; i != ie; ++i) {
+                double x{ randomRealGenerate(0, 1) };
+                if (connect_state_[i] == 0) {
+                    if (x <= (data_.getNumberOfConnections()[i] * data_.getFailureProbability())) {
+                        ++connect;
+                        if (calcConnectedComp() < data_.getChannelsOfConnection()) connect_state_[i] = 1;
+                        else ++denial;
+                    }
+                }
+                else if (x <= data_.getWorkingHours()[i] * data_.getFailureProbability()) connect_state_[i] = 0;
+            }
+            return { connect, denial };
+        }
+
+        void startTests() noexcept {
+            for (size_t i{}, ie{ data_.getNumberOfTests() }; i != ie; ++i) {
+                BreakConnect();
+                double c{ data_.getFailureProbability() };
+                double t{ data_.getObservationInterval() };
+                size_t cn{};
+                size_t den{};
+                while (c < t) {
+                    auto&& [cn_tmp, den_tmp] { Step() };
+                    cn += cn_tmp;
+                    den += den_tmp;
+                    c += data_.getFailureProbability();
+                }
+                connect_.emplace_back(cn);
+                denial_.emplace_back(den);
+            }
+            auto connect_sum{ std::accumulate(connect_.begin(), connect_.end(), size_t{}) };
+            auto denial_sum{ std::accumulate(denial_.begin(), denial_.end(), size_t{}) };
+
+            auto failure_probability{ 1. * denial_sum / connect_sum };
+            auto tmp{ data_.getQuintileOfNormalDistribution() * std::sqrt(failure_probability * (1 - failure_probability)) };
+            auto left_span{ failure_probability  - tmp };
+            auto right_span{ failure_probability  + tmp };
+
+        }
+
+        inline std::string delimiter(char c, size_t width) const noexcept {
+            return std::string(width, c);
+        }
+        
+
     private:
-        size_t number_of_machines_;
-        size_t channels_of_connection_;
-        double failure_probability_;
-
-
-        std::vector<double> number_of_connections_;
-        std::vector<double> working_hours_;
-
-
+        InputData data_;
+        std::vector<size_t> connect_;
+        std::vector<size_t> denial_;
+        std::vector<size_t> connect_state_;
     };
 
 }
@@ -201,11 +302,10 @@ namespace KHAS {
 
 
 int main() {
+    //KHAS::InputData data{ "./data.txt" };
     KHAS::InputData data{ "D:\\PROJECTS\\CPP\\QueuingTheory\\x64\\Debug\\data.txt" };
 
-    std::cout << data << "\n\n";
-
-
     KHAS::FailureProbabilityAssessment fpa{ data };
+    system("pause");
     return 0;
 }
