@@ -63,6 +63,7 @@ namespace KHAS {
         }
 
 
+
     private:
 
         void clear() noexcept {
@@ -142,7 +143,7 @@ namespace KHAS {
             return readFromStream(number_of_connections_, fs, number_of_machines_, number_of_connection_columns_,
                 [&](auto n) { return 1. * n / number_of_connection_columns_; })
                 && readFromStream(working_hours_, fs, number_of_machines_, number_of_working_times_,
-                    [&](auto n) { return number_of_connection_columns_ * 24. / n; });
+                    [&](auto n) { return number_of_working_times_ * 24. / n; });
             
         }
 
@@ -187,6 +188,9 @@ namespace KHAS {
 
     class FailureProbabilityAssessment final {
 
+        enum class WriteToStreamType { Header, Tests };
+
+
     public:
         explicit FailureProbabilityAssessment(const InputData& data) noexcept
             : data_{ data } 
@@ -195,32 +199,86 @@ namespace KHAS {
             denial_.reserve(data_.getNumberOfTests());
             connect_state_.resize(data_.getNumberOfTests());
             startTests();
-            showCalculationResult();
         }
 
     public:
         void showCalculationResult() const noexcept{
-            /*std::setlocale(LC_ALL, "Russian");
+            std::setlocale(LC_ALL, "Russian");
             std::stringstream buf;
-            buf << std::setw(15) << std::left << "| Компьютер "
-                << std::setw(40) << std::left << "| Интенсивности подключения"
-                << std::setw(40) << std::left << "| Интенсивности освобождения" 
-                << "|";
-            
-            auto delim{ delimiter('-', buf.tellp()) };
-            auto header{ buf.str() };
-            buf.str("");
-            buf << delim << "\n"
-                << header << "\n"
-                << delim << "\n";
-            for()
 
-            std::cout << buf.str();*/
+            size_t width_delim{ writeToStreamTop(buf, std::string("Компьютер"), data_.getNumberOfMachines()) };
+
+            writeToStream(buf, std::string("Интенсивности подключекния")
+                , data_.getNumberOfConnections(), WriteToStreamType::Header, width_delim);
+
+            writeToStream(buf, std::string("Интенсивности освобождения")
+                , data_.getWorkingHours(), WriteToStreamType::Header, width_delim);
+
+            writeToStreamTop(buf, std::string("Номер опыта"), data_.getNumberOfTests(), width_delim);
+
+            writeToStream(buf, std::string("Попытки"), connect_, WriteToStreamType::Tests, width_delim);
+            writeToStream(buf, std::string("Отказы"), denial_, WriteToStreamType::Tests, width_delim);
+
+            writeToStream(buf, std::string("Вероятнеость отказа:"), width_delim, failure_probability_);
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(3) << "(" << left_span_ << "; " << right_span_ << ")";
+            writeToStream(buf, std::string("Доверительный интервал:"), width_delim, ss.str());
+
+            std::cout << buf.str();
 
         }
 
         
     private:
+
+        inline size_t writeToStreamTop(std::stringstream& out, const std::string& header, size_t count) const noexcept {
+            
+            out << "| " << std::setw(28) << std::left << header;
+            for (size_t i{}, ie{ count }; i != ie; ++i) out << " | " << std::setw(11) << std::right << i+1;
+            out << " |";
+
+            size_t width_delim = out.tellp();
+
+            auto delim{ delimiter('-', width_delim) };
+            auto top{ out.str() };
+            out.str("");
+            out << delim << "\n"
+                << top << "\n"
+                << delim << "\n";
+
+            return width_delim;
+        }
+        inline void writeToStreamTop(std::stringstream& out, const std::string& header, size_t count, size_t width_delim) const noexcept {
+            auto delim{ delimiter('-', width_delim) };
+            out << delim << "\n| " << std::setw(28) << std::left << header;
+            for (size_t i{}, ie{ count }; i != ie; ++i) out << " | " << std::setw(4) << std::right << i+1;
+            out << " |\n" << delim << "\n";
+        }
+
+        template <typename T>
+        inline void writeToStream(std::stringstream& out, const std::string& header, size_t width_delim, T&& value) const noexcept {
+            auto delim{ delimiter('-', width_delim) };
+            out << delim << "\n| " << std::setw(28) << std::left << header;
+            out << " | " << std::setw(width_delim - 35) << std::right << std::fixed << std::setprecision(3) << std::forward<T>(value) << " |\n" << delim << "\n";
+        }
+
+        template <typename Cont>
+        inline void writeToStream(std::stringstream& out, const std::string& header, const Cont& cont, WriteToStreamType wt, size_t width_delim) const noexcept {
+            
+            auto delim{ delimiter('-', width_delim) };
+            out << "| " << std::setw(28) << std::left << header;
+            for (const auto& elem : cont)
+            {
+                if (wt == WriteToStreamType::Header) {
+                    out << " | " << std::setw(11) << std::right << std::setprecision(2) << std::fixed << elem;
+                }
+                else if (wt == WriteToStreamType::Tests) {
+                    out << " | " << std::setw(4) << std::right << elem;
+                }
+            }
+            out << " |\n" << delim << "\n";
+        }
+
         inline void BreakConnect() noexcept {
             std::fill(connect_state_.begin(), connect_state_.end(), 0);
         }
@@ -275,10 +333,10 @@ namespace KHAS {
             auto connect_sum{ std::accumulate(connect_.begin(), connect_.end(), size_t{}) };
             auto denial_sum{ std::accumulate(denial_.begin(), denial_.end(), size_t{}) };
 
-            auto failure_probability{ 1. * denial_sum / connect_sum };
-            auto tmp{ data_.getQuintileOfNormalDistribution() * std::sqrt(failure_probability * (1 - failure_probability)) };
-            auto left_span{ failure_probability  - tmp };
-            auto right_span{ failure_probability  + tmp };
+            failure_probability_ = 1. * denial_sum / connect_sum;
+            auto tmp{ data_.getQuintileOfNormalDistribution() * std::sqrt(failure_probability_ * (1 - failure_probability_)) };
+            left_span_ = failure_probability_ - tmp;
+            right_span_ = failure_probability_ + tmp;
 
         }
 
@@ -292,6 +350,9 @@ namespace KHAS {
         std::vector<size_t> connect_;
         std::vector<size_t> denial_;
         std::vector<size_t> connect_state_;
+        double failure_probability_{};
+        double left_span_{};
+        double right_span_{};
     };
 
 }
@@ -306,6 +367,7 @@ int main() {
     KHAS::InputData data{ "D:\\PROJECTS\\CPP\\QueuingTheory\\x64\\Debug\\data.txt" };
 
     KHAS::FailureProbabilityAssessment fpa{ data };
+    fpa.showCalculationResult();
     system("pause");
     return 0;
 }
