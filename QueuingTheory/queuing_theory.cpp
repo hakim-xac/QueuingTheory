@@ -334,7 +334,7 @@ namespace KHAS {
             auto denial_sum{ std::accumulate(denial_.begin(), denial_.end(), size_t{}) };
 
             failure_probability_ = 1. * denial_sum / connect_sum;
-            auto tmp{ data_.getQuintileOfNormalDistribution() * std::sqrt(failure_probability_ * (1 - failure_probability_)) };
+            auto tmp{ data_.getQuintileOfNormalDistribution() * std::sqrt(failure_probability_ * (1 - failure_probability_) / connect_sum) };
             left_span_ = failure_probability_ - tmp;
             right_span_ = failure_probability_ + tmp;
 
