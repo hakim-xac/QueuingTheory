@@ -131,7 +131,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FailureProbabilityAssessment.cpp" />
+    <ClCompile Include="InputData.cpp" />
     <ClCompile Include="queuing_theory.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="FailureProbabilityAssessment.h" />
+    <ClInclude Include="InputData.h" />
+    <ClInclude Include="InputData.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
