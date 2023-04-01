@@ -137,6 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FailureProbabilityAssessment.h" />
+    <ClInclude Include="FailureProbabilityAssessment.hpp" />
     <ClInclude Include="InputData.h" />
     <ClInclude Include="InputData.hpp" />
   </ItemGroup>
