@@ -242,7 +242,12 @@ namespace KHAS {
             auto delim{ delimiter('-', width_delim) };
             auto top{ out.str() };
             out.str("");
+
             out << delim << "\n"
+                << "| " << std::setw(28) << std::left << "Студент:" << " | " << std::setw(width_delim - 32) << std::right << "Хакимов А.С. |\n"
+                << "| " << std::setw(28) << std::left << "Группа №:" << " | " << std::setw(width_delim - 32) << std::right << "ПБ-11 |\n"
+                << "| " << std::setw(28) << std::left << "Задание:" << " | " << std::setw(width_delim - 32) << std::right << "Необходимо оценить вероятность отказа при подключении |\n"
+                << delim << "\n"
                 << top << "\n"
                 << delim << "\n";
 
