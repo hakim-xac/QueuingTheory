@@ -1,14 +1,7 @@
 #pragma once
-#include <iostream>
-#include <string>
-#include <iomanip>
 #include <vector>
-#include <algorithm>
-#include <random>
 #include <fstream>
-#include <numeric>
 #include <sstream>
-#include <iterator>
 
 namespace KHAS {
     class InputData final {
